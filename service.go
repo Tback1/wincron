@@ -40,7 +40,9 @@ func reportFatalToEventLog(err error) {
 
 func (s *cronService) Execute(args []string, requests <-chan svc.ChangeRequest, status chan<- svc.Status) (bool, uint32) {
 	status <- svc.Status{State: svc.StartPending, WaitHint: startStopWaitHintMillis}
-	logger, closer, err := openLogger(s.logPath, false)
+
+	// 传入 s.crontabPath，以便 openLogger 能够提取文件中的 WINCRON_LOG
+	logger, closer, err := openLogger(s.crontabPath, s.logPath, false)
 	if err != nil {
 		reportFatalToEventLog(fmt.Errorf("opening log file %s: %w", s.logPath, err))
 		return false, 1

@@ -122,11 +122,13 @@ func validate(crontabPath string) error {
 }
 
 func runForeground(crontabPath, logPath string) error {
-	logger, closer, err := openLogger(logPath, true)
+	// 传入 crontabPath
+	logger, closer, err := openLogger(crontabPath, logPath, true)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = closer.Close() }()
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	cron.NewScheduler(crontabPath, logger).Run(ctx)
