@@ -1,11 +1,9 @@
 package main
 
 import (
-	"bufio"
 	"io"
 	"log"
 	"os"
-	"strings"
 	"sync"
 	"time"
 )
@@ -87,61 +85,10 @@ func (w *rotatingWriter) reopen(path string, sizeHint int64) {
 func (w *rotatingWriter) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if w.f == nil {
-		return nil
-	}
 	return w.f.Close()
 }
 
-// extractCrontabLogEnv 直接从 crontab.txt 文件中扫描 WINCRON_LOG 环境变量设置
-func extractCrontabLogEnv(crontabPath string) string {
-	f, err := os.Open(crontabPath)
-	if err != nil {
-		return ""
-	}
-	defer func() { _ = f.Close() }()
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		// 跳过空行和注释
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		// 遇到环境变量配置项 WINCRON_LOG=...
-		if strings.HasPrefix(line, "WINCRON_LOG=") {
-			val := strings.TrimPrefix(line, "WINCRON_LOG=")
-			// 剥离可能存在的引号 (如 WINCRON_LOG="C:\log.log")
-			val = strings.Trim(strings.TrimSpace(val), "\"'")
-			return val
-		}
-	}
-	return ""
-}
-
-func openLogger(crontabPath, path string, mirrorStdout bool) (*log.Logger, io.Closer, error) {
-	// 1. 读取系统/进程级环境变量
-	envLog := strings.TrimSpace(os.Getenv("WINCRON_LOG"))
-
-	// 2. 若系统环境变量未设置，从 crontab.txt 文件提取
-	if envLog == "" && crontabPath != "" {
-		envLog = strings.TrimSpace(extractCrontabLogEnv(crontabPath))
-	}
-
-	// 3. 显式禁用日志 (off / none / null / NUL)
-	if strings.EqualFold(envLog, "off") || strings.EqualFold(envLog, "none") || strings.EqualFold(envLog, "null") || strings.EqualFold(envLog, "nul") {
-		var w io.Writer = io.Discard
-		if mirrorStdout {
-			w = os.Stdout
-		}
-		return log.New(w, "", log.LstdFlags), io.NopCloser(nil), nil
-	}
-
-	// 4. 若解析出自定义路径则覆盖默认路径
-	if envLog != "" {
-		path = envLog
-	}
-
+func openLogger(path string, mirrorStdout bool) (*log.Logger, io.Closer, error) {
 	rw, err := newRotatingWriter(path, maxLogBytes)
 	if err != nil {
 		return nil, nil, err
